@@ -1,0 +1,37 @@
+{
+  "name": "Lead Qualification - Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "sendTo": "your-email@example.com",
+        "subject": "=[n8n] Workflow failed: {{ $json.workflow.name }}",
+        "message": "=<p><strong>A workflow execution failed.</strong></p><p><strong>Workflow:</strong> {{ $json.workflow.name }}</p><p><strong>Failed node:</strong> {{ $json.execution.lastNodeExecuted }}</p><p><strong>Error:</strong> {{ $json.execution.error.message }}</p>",
+        "options": {}
+      },
+      "name": "Email: Failure Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [224, 0]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Email: Failure Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
