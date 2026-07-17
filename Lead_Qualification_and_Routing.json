@@ -1,0 +1,118 @@
+{
+  "name": "Lead Qualification & Routing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead",
+        "options": {}
+      },
+      "name": "Lead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 192]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a B2B sales lead qualification assistant. Analyze the following inbound lead and return structured data.\n\nAssign a qualification score from 1 to 10 (10 = perfect fit, ready to buy; 1 = poor fit / spam). Base your judgment on the seriousness of the message, budget signals, company presence, and buying intent. Also choose the single best-fitting intent_tag and recommended_action from the allowed lists, and write a short follow_up_note.\n\nLead details:\nName: {{ $json.body.name }}\nEmail: {{ $json.body.email }}\nCompany: {{ $json.body.company }}\nBudget: {{ $json.body.budget }}\nMessage: {{ $json.body.message }}",
+        "hasOutputParser": true
+      },
+      "name": "Qualify Lead",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [224, 192]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [240, 416]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\"type\":\"object\",\"properties\":{\"score\":{\"type\":\"number\"},\"reason\":{\"type\":\"string\"},\"intent_tag\":{\"type\":\"string\"},\"recommended_action\":{\"type\":\"string\"},\"follow_up_note\":{\"type\":\"string\"}},\"required\":[\"score\",\"reason\",\"intent_tag\",\"recommended_action\",\"follow_up_note\"]}"
+      },
+      "name": "Parse Score & Reason",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [368, 416]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.output.score }}", "rightValue": 7, "operator": { "type": "number", "operation": "gt" } }] }, "outputKey": "Hot Lead" },
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.output.score }}", "rightValue": 4, "operator": { "type": "number", "operation": "lt" } }] }, "outputKey": "Nurture" },
+            { "conditions": { "conditions": [{ "leftValue": "={{ $json.output.score }}", "rightValue": 4, "operator": { "type": "number", "operation": "gte" } }, { "leftValue": "={{ $json.output.score }}", "rightValue": 7, "operator": { "type": "number", "operation": "lte" } }] }, "outputKey": "Manual Review" }
+          ]
+        }
+      },
+      "name": "Route by Score",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [576, 176]
+    },
+    {
+      "parameters": { "operation": "create" },
+      "name": "Airtable: Hot Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [800, 0]
+    },
+    {
+      "parameters": { "select": "channel", "text": "New Hot Lead" },
+      "name": "Slack: Notify Team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [1024, 0]
+    },
+    {
+      "parameters": { "operation": "create" },
+      "name": "Airtable: Nurture",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [800, 192]
+    },
+    {
+      "parameters": { "subject": "Thanks for reaching out!" },
+      "name": "Gmail: Nurture Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [1024, 192]
+    },
+    {
+      "parameters": { "operation": "create" },
+      "name": "Airtable: Manual Review",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [800, 384]
+    },
+    {
+      "parameters": { "select": "channel", "text": "Lead needs manual review" },
+      "name": "Slack: Manual Review",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [1024, 384]
+    }
+  ],
+  "connections": {
+    "Lead Webhook": { "main": [[{ "node": "Qualify Lead", "type": "main", "index": 0 }]] },
+    "Qualify Lead": { "main": [[{ "node": "Route by Score", "type": "main", "index": 0 }]] },
+    "OpenAI Chat Model": { "ai_languageModel": [[{ "node": "Qualify Lead", "type": "ai_languageModel", "index": 0 }]] },
+    "Parse Score & Reason": { "ai_outputParser": [[{ "node": "Qualify Lead", "type": "ai_outputParser", "index": 0 }]] },
+    "Route by Score": { "main": [[{ "node": "Airtable: Hot Lead", "type": "main", "index": 0 }], [{ "node": "Airtable: Nurture", "type": "main", "index": 0 }], [{ "node": "Airtable: Manual Review", "type": "main", "index": 0 }]] },
+    "Airtable: Hot Lead": { "main": [[{ "node": "Slack: Notify Team", "type": "main", "index": 0 }]] },
+    "Airtable: Nurture": { "main": [[{ "node": "Gmail: Nurture Email", "type": "main", "index": 0 }]] },
+    "Airtable: Manual Review": { "main": [[{ "node": "Slack: Manual Review", "type": "main", "index": 0 }]] }
+  }
+}
